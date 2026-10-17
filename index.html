@@ -84,7 +84,7 @@
   /* 道具栏：捡到的狐萝卜放这里，点一下拿在手上，再点一下放回 */
   .slot {
     all: unset;
-    position: absolute; left: calc(var(--u) * 4); bottom: calc(var(--u) * 4 + var(--safe-bottom, 0px));
+    position: absolute; right: calc(var(--u) * 4); bottom: calc(var(--u) * 4 + var(--slot-lift, 0px));
     width: calc(var(--u) * 19); height: calc(var(--u) * 19);
     background: var(--cream);
     border: calc(var(--u) * 1.2) solid var(--ink);
@@ -418,6 +418,8 @@
     'padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);';
   document.body.appendChild(safeProbe);
 
+  var SLOT_SAFE_TRIM = 30;
+
   function layout() {
     var w = Math.min(window.innerWidth, window.innerHeight * W / H);
     stage.style.width = w + 'px';
@@ -426,8 +428,12 @@
     // 舞台贴住屏幕上 / 下边时才需要避开刘海和横条
     var cs = getComputedStyle(safeProbe);
     var touchesEdges = window.innerHeight - w * H / W < 2;
-    stage.style.setProperty('--safe-top', (touchesEdges ? parseFloat(cs.paddingTop) || 0 : 0) + 'px');
-    stage.style.setProperty('--safe-bottom', (touchesEdges ? parseFloat(cs.paddingBottom) || 0 : 0) + 'px');
+    var safeTop = touchesEdges ? parseFloat(cs.paddingTop) || 0 : 0;
+    var safeBottom = touchesEdges ? parseFloat(cs.paddingBottom) || 0 : 0;
+    stage.style.setProperty('--safe-top', safeTop + 'px');
+    stage.style.setProperty('--safe-bottom', safeBottom + 'px');
+    // 道具栏只上移 (底部安全区 - SLOT_SAFE_TRIM)，避免碰到右下角的洞
+    stage.style.setProperty('--slot-lift', Math.max(0, safeBottom - SLOT_SAFE_TRIM) + 'px');
   }
   window.addEventListener('resize', layout);
   window.addEventListener('orientationchange', layout);

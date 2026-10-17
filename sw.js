@@ -1,7 +1,7 @@
 // 离线缓存：首次打开时缓存 FILES 里的全部文件，之后断网也能运行。
 // 读取策略：先返回缓存里的版本，同时在后台请求新版本并更新缓存（下次打开时生效）。
 // VERSION：缓存名称，换新名称后旧缓存会在激活时删除。FILES：安装时预先缓存的文件列表。
-var VERSION = 'qiuqiu-v9';
+var VERSION = 'qiuqiu-v10';
 var FILES = [
   './',
   'index.html',

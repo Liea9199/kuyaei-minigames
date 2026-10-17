@@ -1,7 +1,7 @@
 // 离线缓存：第一次打开时把整个游戏存到手机里，之后断网也能玩。
 // 策略：先用缓存里的版本秒开，同时在后台拉新版本，下次打开就是新的。
 // 增删文件后记得改 VERSION 和下面的列表。
-var VERSION = 'qiuqiu-v1';
+var VERSION = 'qiuqiu-v4';
 var FILES = [
   './',
   'index.html',

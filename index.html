@@ -24,6 +24,7 @@
     --pink: #f29a8e;
   }
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  img { -webkit-user-drag: none; -webkit-touch-callout: none; }
   html, body {
     margin: 0; height: 100%;
     background: #6fc6ce;
@@ -31,7 +32,9 @@
     color: var(--ink);
     overflow: hidden;
     user-select: none; -webkit-user-select: none;
-    touch-action: manipulation;
+    -webkit-touch-callout: none;  /* 长按图片不弹“存储图像”菜单 */
+    /* 整页都不需要滚动和缩放：关掉双击放大、双指缩放 */
+    touch-action: none;
   }
   body { display: flex; align-items: center; justify-content: center; }
   /* 每种语言用对应地区的字体，避免日文/韩文/繁中套用简中字形 */
@@ -466,7 +469,7 @@
   var lang = 'zh-CN';
   var lastResult = null;  // 结算画面显示中切换语言时用来重画
 
-  function t(key, n) { return TEXT[lang][key].replace('{n}', n); }
+  function tr(key, n) { return TEXT[lang][key].replace('{n}', n); }
 
   // 没手动选过就跟随系统语言
   function detectLang() {
@@ -489,9 +492,9 @@
   function setLang(l) {
     lang = l;
     document.documentElement.lang = l;
-    document.title = t('title');
-    document.querySelectorAll('[data-i18n]').forEach(function (el) { el.innerHTML = t(el.dataset.i18n); });
-    document.querySelectorAll('[data-i18n-label]').forEach(function (el) { el.setAttribute('aria-label', t(el.dataset.i18nLabel)); });
+    document.title = tr('title');
+    document.querySelectorAll('[data-i18n]').forEach(function (el) { el.innerHTML = tr(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-label]').forEach(function (el) { el.setAttribute('aria-label', tr(el.dataset.i18nLabel)); });
     langBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === l)); });
     renderResultNote();
   }
@@ -499,7 +502,7 @@
   function renderResultNote() {
     if (!lastResult) return;
     resultNote.className = lastResult.record ? 'new-record' : '';
-    resultNote.textContent = lastResult.record ? t('newRecord') : t('bestScore', lastResult.best);
+    resultNote.textContent = lastResult.record ? tr('newRecord') : tr('bestScore', lastResult.best);
   }
 
   langBtns.forEach(function (b) {
@@ -637,7 +640,7 @@
     if (h.type === 'carrot') {
       // 狐萝卜：收进道具栏
       sfx('pickup');
-      popText(h, t('gotCarrot'), 'item-pop');
+      popText(h, tr('gotCarrot'), 'item-pop');
       sink(h);
       game.carrots++;
       updateSlot();
@@ -811,13 +814,56 @@
   });
 
   // ---- 音效（WebAudio 合成，不需要额外文件）----
-  var ac = null;
+  // iPhone 的限制：
+  //   1. 声音只能在点击的那一刻启动，切 app / 锁屏 / 来电后会被暂停（state 变成 suspended 或 interrupted），
+  //      所以每次点击都检查一遍，没在播就恢复。
+  //   2. 侧边静音开关打开时 Web Audio 会被静音。把音频类型设成 playback（和看视频一样）就能出声，
+  //      代价是会暂停正在后台放的音乐。旧版 iOS 没有 audioSession，用循环播放一段无声音频达到同样效果。
+  var ac = null, audioUnlocked = false, silentEl = null;
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
   function initAudio() {
     try {
+      if (navigator.audioSession) navigator.audioSession.type = 'playback';
+      else if (isIOS) playSilentLoop();
       if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
-      if (ac.state === 'suspended') ac.resume();
+      if (ac.state !== 'running') ac.resume();
+      if (!audioUnlocked) {
+        // 旧版 iOS 要在点击里真的播一下才算解锁
+        var src = ac.createBufferSource();
+        src.buffer = ac.createBuffer(1, 1, 22050);
+        src.connect(ac.destination);
+        src.start(0);
+        audioUnlocked = true;
+      }
     } catch (e) {}
   }
+
+  function playSilentLoop() {
+    if (!silentEl) {
+      // 0.1 秒的无声 WAV（8kHz，8 位，单声道）
+      var n = 800, buf = new ArrayBuffer(44 + n), v = new DataView(buf);
+      var str = function (o, s) { for (var i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+      str(0, 'RIFF'); v.setUint32(4, 36 + n, true); str(8, 'WAVEfmt ');
+      v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+      v.setUint32(24, 8000, true); v.setUint32(28, 8000, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+      str(36, 'data'); v.setUint32(40, n, true);
+      for (var i = 0; i < n; i++) v.setUint8(44 + i, 128);
+      silentEl = new Audio(URL.createObjectURL(new Blob([buf], { type: 'audio/wav' })));
+      silentEl.loop = true;
+      silentEl.setAttribute('playsinline', '');
+    }
+    if (silentEl.paused) { var p = silentEl.play(); if (p && p.catch) p.catch(function () {}); }
+  }
+
+  // 每次点击都顺便确认声音还活着
+  document.addEventListener('touchend', initAudio, true);
+  document.addEventListener('click', initAudio, true);
+  document.addEventListener('pointerdown', initAudio, true);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden && silentEl) silentEl.pause();
+  });
   function tone(type, f0, f1, dur, vol, delay) {
     var t = ac.currentTime + (delay || 0);
     var o = ac.createOscillator(), g = ac.createGain();
@@ -826,7 +872,9 @@
     o.frequency.exponentialRampToValueAtTime(f1, t + dur);
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    o.connect(g).connect(ac.destination);
+    // 分开写：旧版 Safari 的 connect() 没有返回值，不能连写
+    o.connect(g);
+    g.connect(ac.destination);
     o.start(t); o.stop(t + dur + 0.02);
   }
   function sfx(kind) {
@@ -862,7 +910,7 @@
         n--;
         setTimeout(step, 700);
       } else {
-        countdownEl.innerHTML = '<span>' + t('go') + '</span>';
+        countdownEl.innerHTML = '<span>' + tr('go') + '</span>';
         sfx('go');
         setTimeout(function () { countdownEl.innerHTML = ''; }, 700);
         run();
@@ -917,6 +965,18 @@
 
   document.getElementById('startBtn').addEventListener('click', startGame);
   document.getElementById('againBtn').addEventListener('click', startGame);
+
+  // iPhone 的 Safari 会无视 user-scalable=no，连点还是会被当成双击放大，这里直接拦掉。
+  // 按钮要保留点击，其他地方的点击判定用的是 pointerdown，不受影响
+  document.addEventListener('touchend', function (e) {
+    if (!(e.target.closest && e.target.closest('button'))) e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+  // 双指缩放（iOS 专有事件）
+  ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (type) {
+    document.addEventListener(type, function (e) { e.preventDefault(); }, { passive: false });
+  });
+  document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // 离线缓存（只在 https 网页版里用；APK 里文件本来就在手机上）
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !window.Capacitor) {

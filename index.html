@@ -290,6 +290,36 @@
   .btn:hover { background: #d6c4ff; }
   .btn:active { transform: translateY(calc(var(--u) * 1.2)); box-shadow: 0 calc(var(--u) * .4) 0 var(--ink); }
   .btn:focus-visible { outline: calc(var(--u) * 1) solid #fff; outline-offset: calc(var(--u) * 1); }
+  /* 无限狐萝卜模式按钮 */
+  .btn.alt {
+    display: flex; align-items: center; justify-content: center;
+    margin: calc(var(--u) * 4.5) auto 0;
+    font-size: calc(var(--u) * 4.6);
+    padding: calc(var(--u) * 1.2) calc(var(--u) * 5) calc(var(--u) * 1.2) calc(var(--u) * 2);
+    background: #fff1b8;
+    white-space: nowrap;
+  }
+  .btn.alt:hover { background: #ffe88a; }
+  .btn-ico { position: relative; width: calc(var(--u) * 8); height: calc(var(--u) * 8); overflow: hidden; flex: none; margin-right: calc(var(--u) * 1.4); }
+  .btn-ico img { position: absolute; width: calc(var(--u) * 15); height: calc(var(--u) * 15); left: calc(var(--u) * -3.5); top: calc(var(--u) * -4.4); }
+  .mode-tag {
+    display: inline-block;
+    margin-bottom: calc(var(--u) * 2);
+    padding: calc(var(--u) * .6) calc(var(--u) * 3);
+    border-radius: 99px;
+    background: #fff1b8;
+    font-size: calc(var(--u) * 3.6); font-weight: 800;
+  }
+  .mode-tag[hidden] { display: none; }
+  .link-btn {
+    all: unset;
+    display: block; margin: calc(var(--u) * 4) auto 0;
+    font-size: calc(var(--u) * 4); font-weight: 800; color: var(--ink);
+    text-decoration: underline; text-underline-offset: calc(var(--u) * .8);
+    cursor: pointer; opacity: .8;
+  }
+  .link-btn:hover { opacity: 1; }
+  .link-btn:focus-visible { outline: calc(var(--u) * .8) solid #fff; outline-offset: calc(var(--u) * .6); }
 
   .countdown {
     position: absolute; left: 0; right: 0; top: 52%;
@@ -333,12 +363,15 @@
         <div class="rule feed"><span class="ico" style="--cy:.56"><img src="assets/carrot.png" alt=""></span><span data-i18n="ruleCarrot">神秘的狐萝卜，<br>使用了会发生什么事呢？</span></div>
       </div>
       <button class="btn" id="startBtn" type="button" data-i18n="start">开始</button>
+      <button class="btn alt" id="carrotModeBtn" type="button"><span class="btn-ico"><img src="assets/carrot.png" alt=""></span><span data-i18n="modeCarrot">无限狐萝卜模式</span></button>
     </div>
     <div class="card" id="resultCard" hidden>
+      <div class="mode-tag" id="modeTag" data-i18n="modeCarrot" hidden>无限狐萝卜模式</div>
       <h2 data-i18n="timeUp">时间到！</h2>
       <div class="result-score" id="resultScore">0</div>
       <p id="resultNote"></p>
       <button class="btn" id="againBtn" type="button" data-i18n="again">再来一局</button>
+      <button class="link-btn" id="toTitleBtn" type="button" data-i18n="toTitle">回到标题</button>
     </div>
     <div class="langs" id="langs" role="group" aria-label="Language">
       <button type="button" data-lang="zh-CN" lang="zh-CN">简</button>
@@ -404,6 +437,7 @@
   var resultCard = document.getElementById('resultCard');
   var resultScore = document.getElementById('resultScore');
   var resultNote = document.getElementById('resultNote');
+  var modeTag = document.getElementById('modeTag');
   var langBtns = document.querySelectorAll('#langs [data-lang]');
   var faceEl = document.getElementById('face');
   var weaponEl = document.getElementById('weapon');
@@ -448,7 +482,8 @@
       ruleCarrot: '神秘的狐萝卜，<br>使用了会发生什么事呢？',
       start: '开始', go: '开始！', gotCarrot: '拿到狐萝卜！',
       timeUp: '时间到！', newRecord: '新纪录！🎉', bestScore: '最高分 {n}', again: '再来一局',
-      slot: '狐萝卜道具'
+      slot: '狐萝卜道具',
+      modeCarrot: '无限狐萝卜模式', toTitle: '回到标题'
     },
     'zh-TW': {
       title: '球球打地鼠', score: '分數', time: '時間', best: '最高分',
@@ -457,7 +492,8 @@
       ruleCarrot: '神祕的狐蘿蔔，<br>用了會發生什麼事呢？',
       start: '開始', go: '開始！', gotCarrot: '拿到狐蘿蔔！',
       timeUp: '時間到！', newRecord: '新紀錄！🎉', bestScore: '最高分 {n}', again: '再玩一次',
-      slot: '狐蘿蔔道具'
+      slot: '狐蘿蔔道具',
+      modeCarrot: '無限狐蘿蔔模式', toTitle: '回到標題'
     },
     ja: {
       title: '玖球もぐらたたき', score: 'スコア', time: 'のこり', best: 'ベスト',
@@ -466,7 +502,8 @@
       ruleCarrot: 'なぞのキツネンジン…<br>使うとどうなるかな？',
       start: 'スタート', go: 'スタート！', gotCarrot: 'ゲット！',
       timeUp: 'タイムアップ！', newRecord: '新記録！🎉', bestScore: 'ベストスコア {n}', again: 'もう一回あそぶ',
-      slot: 'キツネンジン'
+      slot: 'キツネンジン',
+      modeCarrot: '無限キツネンジンモード', toTitle: 'タイトルへ'
     },
     en: {
       title: 'Whack-a-Foxball', score: 'Score', time: 'Time', best: 'Best',
@@ -475,7 +512,8 @@
       ruleCarrot: 'A mysterious Fox Carrot…<br>what happens if you use it?',
       start: 'Start', go: 'Go!', gotCarrot: 'Got a carrot!',
       timeUp: 'Time’s up!', newRecord: 'New record! 🎉', bestScore: 'Best: {n}', again: 'Play again',
-      slot: 'Fox Carrot'
+      slot: 'Fox Carrot',
+      modeCarrot: 'Unlimited Fox Carrots', toTitle: 'Back to title'
     },
     ko: {
       title: '여우공 두더지 잡기', score: '점수', time: '시간', best: '최고 점수',
@@ -484,7 +522,8 @@
       ruleCarrot: '신비한 여우당근,<br>사용하면 무슨 일이 생길까요?',
       start: '시작', go: '시작!', gotCarrot: '여우당근 획득!',
       timeUp: '시간 종료!', newRecord: '신기록! 🎉', bestScore: '최고 점수 {n}', again: '다시 하기',
-      slot: '여우당근'
+      slot: '여우당근',
+      modeCarrot: '무한 여우당근 모드', toTitle: '처음으로'
     }
   };
   var lang = 'zh-CN';
@@ -589,13 +628,20 @@
   }
 
   // ---- 游戏状态 ----
-  var game = { playing: false, score: 0, time: GAME_TIME, best: 0, hits: 0, stunned: false, carrots: 0 };
+  // mode：'normal' 普通模式；'carrot' 无限狐萝卜模式（一直拿着萝卜、不会用完、不出狐萝卜道具）
+  var game = { playing: false, mode: 'normal', score: 0, time: GAME_TIME, hits: 0, stunned: false, carrots: 0 };
   var weapon = 'hammer';
   var MAX_CARROTS = 3;
   var spawnTimer = null, tickTimer = null, endAt = 0;
 
-  try { game.best = parseInt(localStorage.getItem('qiuqiu-whack-best'), 10) || 0; } catch (e) {}
-  bestEl.textContent = game.best;
+  // 最高分按模式分开保存
+  var BEST_KEYS = { normal: 'qiuqiu-whack-best', carrot: 'qiuqiu-whack-best-carrot' };
+  var best = { normal: 0, carrot: 0 };
+  Object.keys(BEST_KEYS).forEach(function (m) {
+    try { best[m] = parseInt(localStorage.getItem(BEST_KEYS[m]), 10) || 0; } catch (e) {}
+  });
+  function infinite() { return game.mode === 'carrot'; }
+  bestEl.textContent = best.normal;
 
   function progress() { return Math.min(1, 1 - game.time / GAME_TIME); }
   function lerp(a, b, t) { return a + (b - a) * t; }
@@ -603,7 +649,7 @@
   function pickType() {
     var r = Math.random();
     // 道具栏满了就不再出狐萝卜
-    var carrotRate = game.carrots >= MAX_CARROTS ? 0 : 0.10;
+    var carrotRate = infinite() || game.carrots >= MAX_CARROTS ? 0 : 0.10;
     var leopardRate = lerp(0.16, 0.28, progress());
     if (r < carrotRate) return 'carrot';
     if (r < carrotRate + leopardRate) return Math.random() < 0.5 ? 'leopardA' : 'leopardB';
@@ -669,13 +715,15 @@
       void slotEl.offsetWidth;
       slotEl.classList.add('got');
     } else if (weapon === 'carrot') {
-      // 用掉一个萝卜，挥完后换回锤子
+      // 普通模式：用掉一个萝卜，挥完后换回锤子；无限模式：一直拿着
       game.hits++;
       sfx('yay');
       addScore(h, t.feedPts);
       setGif(h.char, t.feedGif);
-      game.carrots--;
-      setWeapon('hammer', 350);
+      if (!infinite()) {
+        game.carrots--;
+        setWeapon('hammer', 350);
+      }
       if (t.feedGif === 'feedFox') {
         // 狐萝卜-打中1：狐球抱着萝卜钻回洞里（动画自己会消失）
         later(h, function () { clearHole(h); }, GIF.feedFox.ms);
@@ -730,16 +778,17 @@
   var noHover = window.matchMedia && window.matchMedia('(hover: none)').matches;
 
   function updateSlot() {
-    var inSlot = game.carrots - (weapon === 'carrot' && !noHover ? 1 : 0);
-    slotCount.textContent = inSlot;
-    slotEl.classList.toggle('empty', game.carrots <= 0);
+    // 无限模式：一直显示萝卜，数字显示 ∞
+    var inSlot = infinite() ? Infinity : game.carrots - (weapon === 'carrot' && !noHover ? 1 : 0);
+    slotCount.textContent = infinite() ? '∞' : inSlot;
+    slotEl.classList.toggle('empty', !infinite() && game.carrots <= 0);
     slotEl.classList.toggle('none', inSlot <= 0);
     slotEl.classList.toggle('on', weapon === 'carrot');
   }
 
-  // 点道具栏：锤子 <-> 狐萝卜
+  // 点道具栏：锤子 <-> 狐萝卜（无限模式不能切换）
   slotEl.addEventListener('click', function () {
-    if (!game.playing) return;
+    if (!game.playing || infinite()) return;
     if (weapon === 'carrot') setWeapon('hammer');
     else if (game.carrots > 0) { setWeapon('carrot'); sfx('pickup'); }
   });
@@ -926,13 +975,14 @@
   }
 
   // ---- 流程 ----
-  function startGame() {
+  function startGame(mode) {
     initAudio(true);
     overlay.hidden = true;
     holes.forEach(clearHole);
-    setWeapon('hammer');
+    game.mode = mode;
     game.score = 0; game.hits = 0; game.time = GAME_TIME; game.stunned = false; game.carrots = 0;
-    updateSlot();
+    setWeapon(infinite() ? 'carrot' : 'hammer');
+    bestEl.textContent = best[mode];
     scoreEl.textContent = 0;
     timeEl.textContent = GAME_TIME;
     timePill.classList.remove('low');
@@ -978,16 +1028,18 @@
     timePill.classList.remove('low');
     holes.forEach(function (h) { if (h.state !== 'idle') { h.timers.forEach(clearTimeout); h.timers = []; sink(h); } });
 
-    var record = game.score > game.best;
+    var mode = game.mode;
+    var record = game.score > best[mode];
     if (record) {
-      game.best = game.score;
-      bestEl.textContent = game.best;
-      try { localStorage.setItem('qiuqiu-whack-best', String(game.best)); } catch (e) {}
+      best[mode] = game.score;
+      bestEl.textContent = best[mode];
+      try { localStorage.setItem(BEST_KEYS[mode], String(best[mode])); } catch (e) {}
     }
 
     setTimeout(function () {
-      lastResult = { record: record, best: game.best };
+      lastResult = { record: record, best: best[mode] };
       resultScore.textContent = game.score;
+      modeTag.hidden = mode !== 'carrot';
       renderResultNote();
       startCard.hidden = true;
       resultCard.hidden = false;
@@ -998,8 +1050,21 @@
     }, 500);
   }
 
-  document.getElementById('startBtn').addEventListener('click', startGame);
-  document.getElementById('againBtn').addEventListener('click', startGame);
+  // 回到标题：显示开始画面，顶部的最高分换回普通模式
+  function toTitle() {
+    game.mode = 'normal';
+    updateSlot();
+    bestEl.textContent = best.normal;
+    lastResult = null;
+    resultCard.hidden = true;
+    startCard.hidden = false;
+    startCard.style.animation = 'none'; void startCard.offsetWidth; startCard.style.animation = '';
+  }
+
+  document.getElementById('startBtn').addEventListener('click', function () { startGame('normal'); });
+  document.getElementById('carrotModeBtn').addEventListener('click', function () { startGame('carrot'); });
+  document.getElementById('againBtn').addEventListener('click', function () { startGame(game.mode); });
+  document.getElementById('toTitleBtn').addEventListener('click', toTitle);
 
   // 拦截双击放大（iOS Safari 无视 user-scalable=no）。按钮保留点击；游戏内的点击判定用 pointerdown，不受影响
   document.addEventListener('touchend', function (e) {

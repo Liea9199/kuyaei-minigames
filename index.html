@@ -328,6 +328,8 @@
     -webkit-text-stroke: calc(var(--u) * 2.4) var(--ink); paint-order: stroke fill;
   }
   .countdown span { display: inline-block; animation: cd .7s ease-out forwards; }
+  /* 倒数结束的“开始！”：比数字小，所有语言统一字号、保持一行 */
+  .countdown .word { font-size: calc(var(--u) * 17.6); white-space: nowrap; }
   @keyframes cd { from { transform: scale(1.6); opacity: 0; } 30% { transform: scale(1); opacity: 1; } to { opacity: .0; } }
 
   @media (prefers-reduced-motion: reduce) {
@@ -995,7 +997,7 @@
         n--;
         setTimeout(step, 700);
       } else {
-        countdownEl.innerHTML = '<span>' + tr('go') + '</span>';
+        countdownEl.innerHTML = '<span class="word">' + tr('go') + '</span>';
         sfx('go');
         setTimeout(function () { countdownEl.innerHTML = ''; }, 700);
         run();

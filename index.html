@@ -81,10 +81,10 @@
   .pill.low b { color: #e0705f; animation: pulse .5s ease-in-out infinite alternate; }
   @keyframes pulse { to { transform: scale(1.12); } }
 
-  /* 右下角的道具栏：捡到的狐萝卜放这里，点一下拿在手上 */
+  /* 左下角的道具栏（右下角的洞离底边太近，主屏幕模式下要避开 iPhone 底部横条时会撞到）：捡到的狐萝卜放这里，点一下拿在手上 */
   .slot {
     all: unset;
-    position: absolute; right: calc(var(--u) * 4); bottom: calc(var(--u) * 4 + var(--safe-bottom, 0px));
+    position: absolute; left: calc(var(--u) * 4); bottom: calc(var(--u) * 4 + var(--safe-bottom, 0px));
     width: calc(var(--u) * 19); height: calc(var(--u) * 19);
     background: var(--cream);
     border: calc(var(--u) * 1.2) solid var(--ink);
@@ -223,7 +223,7 @@
   .overlay {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 70;
     display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    padding-top: calc(var(--u) * 26);
+    padding-top: calc(var(--u) * 26 + var(--safe-top, 0px));
     background: rgba(146, 223, 230, .35);
     cursor: auto;
   }

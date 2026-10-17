@@ -845,10 +845,23 @@
   var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  function initAudio() {
+  // fresh = true：丢掉旧的音频系统重新建一个（每局开始时用）。
+  // iOS 停一阵子没出声后会关掉网页的音频通道，旧的 AudioContext 虽然显示 running 但已经不出声，
+  // 只能重建；开始按钮是点击触发的，这时建立新的不会被拦。
+  var audioSessionSet = false;
+  function initAudio(fresh) {
     try {
-      if (navigator.audioSession) navigator.audioSession.type = 'playback';
-      else if (isIOS) playSilentLoop();
+      // 只设一次：反复设置在 iOS 上可能会打断正在用的音频
+      if (!audioSessionSet) {
+        if (navigator.audioSession) navigator.audioSession.type = 'playback';
+        audioSessionSet = true;
+      }
+      if (!navigator.audioSession && isIOS) playSilentLoop();
+      if (ac && (fresh === true || ac.state === 'closed' || ac.state === 'interrupted')) {
+        try { ac.close(); } catch (e) {}
+        ac = null;
+        audioUnlocked = false;
+      }
       if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
       if (ac.state !== 'running') ac.resume();
       if (!audioUnlocked) {
@@ -880,9 +893,10 @@
   }
 
   // 每次点击都顺便确认声音还活着
-  document.addEventListener('touchend', initAudio, true);
-  document.addEventListener('click', initAudio, true);
-  document.addEventListener('pointerdown', initAudio, true);
+  function keepAudioAlive() { initAudio(false); }
+  document.addEventListener('touchend', keepAudioAlive, true);
+  document.addEventListener('click', keepAudioAlive, true);
+  document.addEventListener('pointerdown', keepAudioAlive, true);
   document.addEventListener('visibilitychange', function () {
     if (document.hidden && silentEl) silentEl.pause();
   });
@@ -914,7 +928,7 @@
 
   // ---- 流程 ----
   function startGame() {
-    initAudio();
+    initAudio(true);
     overlay.hidden = true;
     holes.forEach(clearHole);
     setWeapon('hammer');

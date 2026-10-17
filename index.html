@@ -107,6 +107,25 @@
   .slot.empty { opacity: .45; }
   .slot.none .ico, .slot.none .count { visibility: hidden; }
   .slot.on { background: var(--purple); transform: translateY(calc(var(--u) * -1.6)); box-shadow: 0 calc(var(--u) * 2.8) 0 var(--ink); }
+  /* 萝卜正在使用中：格子外一圈闪烁的黄色光环（用 ::after，不和“got”弹跳动画抢 animation） */
+  .slot::after {
+    content: '';
+    position: absolute;
+    top: calc(var(--u) * -2.6); left: calc(var(--u) * -2.6);
+    right: calc(var(--u) * -2.6); bottom: calc(var(--u) * -2.6);
+    border: calc(var(--u) * 1.4) solid #ffd84d;
+    border-radius: calc(var(--u) * 7);
+    /* 外圈深色描边，免得黄色和草地混在一起 */
+    box-shadow: 0 0 0 calc(var(--u) * .9) var(--ink), 0 0 calc(var(--u) * 4) calc(var(--u) * 1.6) rgba(255, 244, 170, .95);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .15s;
+  }
+  .slot.on::after { opacity: 1; animation: glow .9s ease-in-out infinite alternate; }
+  @keyframes glow {
+    from { opacity: .55; transform: scale(.97); }
+    to { opacity: 1; transform: scale(1.04); }
+  }
   .slot.got { animation: got .35s cubic-bezier(.34, 1.56, .64, 1); }
   @keyframes got { 40% { transform: scale(1.25); } }
   .slot:not(.none) .ico img { transform-origin: 50% 65%; animation: jitter .14s linear infinite; }
@@ -284,7 +303,7 @@
   @keyframes cd { from { transform: scale(1.6); opacity: 0; } 30% { transform: scale(1); opacity: 1; } to { opacity: .0; } }
 
   @media (prefers-reduced-motion: reduce) {
-    .stage.shake, .pill.low b, .hole.wiggle .char, .slot .ico img, .weapon.jitter { animation: none; }
+    .stage.shake, .pill.low b, .hole.wiggle .char, .slot .ico img, .weapon.jitter, .slot.on::after { animation: none; }
     .weapon.jitter.swing { animation: swing .16s ease-out; }
   }
 </style>
@@ -704,9 +723,12 @@
     if (delay) weaponSwapTimer = setTimeout(showWeapon, delay);
     else showWeapon();
   }
+  // 手机（没有鼠标指针、看不到手上的萝卜）：拿着萝卜时道具栏继续显示萝卜，数字是总数。
+  // 电脑：指针本身就是萝卜，拿在手上的那个不算在格子里。
+  var noHover = window.matchMedia && window.matchMedia('(hover: none)').matches;
+
   function updateSlot() {
-    // 拿在手上的那个不算在格子里
-    var inSlot = game.carrots - (weapon === 'carrot' ? 1 : 0);
+    var inSlot = game.carrots - (weapon === 'carrot' && !noHover ? 1 : 0);
     slotCount.textContent = inSlot;
     slotEl.classList.toggle('empty', game.carrots <= 0);
     slotEl.classList.toggle('none', inSlot <= 0);

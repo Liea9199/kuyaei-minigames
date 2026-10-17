@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <title>球球打地鼠</title>
-<!-- PWA：可以“添加到主屏幕”，断网也能玩 -->
+<!-- PWA -->
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#92dfe6">
 <link rel="icon" type="image/png" href="icons/favicon.png">
@@ -33,7 +33,7 @@
     overflow: hidden;
     user-select: none; -webkit-user-select: none;
     -webkit-touch-callout: none;  /* 长按图片不弹“存储图像”菜单 */
-    /* 整页都不需要滚动和缩放：关掉双击放大、双指缩放 */
+    /* 不要滚动和缩放：关掉双击放大、双指缩放 */
     touch-action: none;
   }
   body { display: flex; align-items: center; justify-content: center; }
@@ -45,8 +45,7 @@
   :lang(zh-CN) { font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif; }
 
   /* 舞台按背景图 1350x3000 等比缩放，内部坐标用百分比，尺寸用 --u（舞台宽度的 1%）。
-     宽高和 --u 由脚本 layout() 按窗口实际大小设置，这里只是脚本运行前的初始值。
-     （不用 cqw / dvh / aspect-ratio：旧版安卓 WebView 不支持） */
+     宽高和 --u 由脚本 layout() 按窗口实际大小设置，这里只是脚本运行前的初始值。 */
   .stage {
     --u: 1vw;
     position: relative;
@@ -56,7 +55,7 @@
     overflow: hidden;
     box-shadow: 0 0 40px rgba(0, 0, 0, .15);
   }
-  /* 脚本算好尺寸前不要有过渡动画，否则会从初始值慢慢变过去 */
+  /* 脚本算好尺寸前不要有过渡动画 */
   .stage:not(.ready) * { transition: none !important; }
   @media (pointer: fine) { .stage { cursor: none; } }
 
@@ -130,7 +129,7 @@
   .slot:not(.none) .ico img { transform-origin: 50% 65%; animation: jitter .14s linear infinite; }
   .slot:focus-visible { outline: calc(var(--u) * 1) solid #fff; outline-offset: calc(var(--u) * .6); }
 
-  /* ---------- 地洞 ---------- */
+  /* ---------- 洞 ---------- */
   .hole {
     position: absolute;
     width: calc(471 / 1350 * 100%);
@@ -139,7 +138,7 @@
   }
   .hole img { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; display: block; }
   .hole img:not([src]) { visibility: hidden; }
-  /* 角色只在地洞前沿下边线以上可见，往下缩就“钻进洞里” */
+  /* 只在地洞前沿下边线以上可见 */
   .clip {
     position: absolute; top: 0; left: 0; right: 0; bottom: 0;
     -webkit-clip-path: polygon(0% 0%, 100% 0%, 100% 69%, 84.9% 69.9%, 80.7% 76.9%, 76.4% 79.7%, 72.2% 81.2%,
@@ -367,7 +366,7 @@
     face:        { src: A + 'face.gif',                ms: 1200 }
   };
 
-  // 角色类型：贴图、命中框（471 画布坐标）、没打中动画、被萝卜喂到的动画和得分
+  // 角色类型：贴图、命中框（471 画布坐标）、没打中动画、被萝卜打到的动画和得分
   //   leopardA = 特殊A：狐球举着豹球    leopardB = 特殊B：普通豹球
   //   leopard：被锤子打中会触发突脸
   var TYPES = {

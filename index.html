@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>球球打地鼠</title>
+<!-- PWA：可以“添加到主屏幕”，断网也能玩 -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#92dfe6">
+<link rel="icon" type="image/png" href="icons/favicon.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="球球打地鼠">
+<style>
+  :root {
+    --ink: #7a7050;
+    --purple: #e2d4ff;
+    --purple-deep: #b9a3e8;
+    --cream: #fffaf0;
+    --sky: #92dfe6;
+    --grass: #e6e46e;
+    --pink: #f29a8e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%;
+    background: #6fc6ce;
+    font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
+    color: var(--ink);
+    overflow: hidden;
+    user-select: none; -webkit-user-select: none;
+    touch-action: manipulation;
+  }
+  body { display: flex; align-items: center; justify-content: center; }
+  /* 每种语言用对应地区的字体，避免日文/韩文/繁中套用简中字形 */
+  :lang(zh-TW) { font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
+  :lang(ja) { font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", "Noto Sans JP", sans-serif; }
+  :lang(ko) { font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; }
+  :lang(en) { font-family: "Nunito", "Segoe UI", system-ui, sans-serif; }
+  :lang(zh-CN) { font-family: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif; }
+
+  /* 舞台按背景图 1350x3000 等比缩放，内部坐标用百分比，尺寸用 --u（舞台宽度的 1%）。
+     宽高和 --u 由脚本 layout() 按窗口实际大小设置，这里只是脚本运行前的初始值。
+     不用 cqw / dvh / aspect-ratio，是为了兼容旧版安卓 WebView */
+  .stage {
+    --u: 1vw;
+    position: relative;
+    flex: none;
+    width: 100vw; height: 222.2vw;
+    background: var(--sky) url("assets/bg.png") center / 100% 100% no-repeat;
+    overflow: hidden;
+    box-shadow: 0 0 40px rgba(0, 0, 0, .15);
+  }
+  /* 脚本算好尺寸前不要有过渡动画，否则会从初始值慢慢变过去 */
+  .stage:not(.ready) * { transition: none !important; }
+  @media (pointer: fine) { .stage { cursor: none; } }
+
+  /* ---------- HUD ---------- */
+  .hud {
+    position: absolute; left: calc(var(--u) * 4); right: calc(var(--u) * 4);
+    top: calc(var(--u) * 4 + var(--safe-top, 0px));
+    display: flex; justify-content: space-between;
+    z-index: 50; pointer-events: none;
+  }
+  .hud .pill + .pill { margin-left: calc(var(--u) * 3); }
+  .pill {
+    flex: 1;
+    background: var(--cream);
+    border: calc(var(--u) * 1.2) solid var(--ink);
+    border-radius: calc(var(--u) * 6);
+    padding: calc(var(--u) * 1.6) calc(var(--u) * 2) calc(var(--u) * 1.2);
+    text-align: center;
+  }
+  .pill small { display: block; font-size: calc(var(--u) * 3.4); font-weight: 700; opacity: .75; }
+  .pill b { display: block; font-size: calc(var(--u) * 7.5); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .pill.low b { color: #e0705f; animation: pulse .5s ease-in-out infinite alternate; }
+  @keyframes pulse { to { transform: scale(1.12); } }
+
+  /* 右下角的道具栏：捡到的狐萝卜放这里，点一下拿在手上 */
+  .slot {
+    all: unset;
+    position: absolute; right: calc(var(--u) * 4); bottom: calc(var(--u) * 4 + var(--safe-bottom, 0px));
+    width: calc(var(--u) * 19); height: calc(var(--u) * 19);
+    background: var(--cream);
+    border: calc(var(--u) * 1.2) solid var(--ink);
+    border-radius: calc(var(--u) * 5);
+    box-shadow: 0 calc(var(--u) * 1.2) 0 var(--ink);
+    z-index: 55;
+    transition: transform .1s, background .15s, opacity .15s;
+  }
+  .slot .ico { position: absolute; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; border-radius: calc(var(--u) * 4); }
+  .slot .ico img { position: absolute; width: calc(var(--u) * 30); height: calc(var(--u) * 30); left: calc(var(--u) * -6.7); top: calc(var(--u) * -8); }
+  .slot .count {
+    position: absolute; right: calc(var(--u) * -2.4); top: calc(var(--u) * -2.4);
+    min-width: calc(var(--u) * 7); height: calc(var(--u) * 7); padding: 0 calc(var(--u) * 1.4);
+    border-radius: 99px;
+    background: #ff8f80; color: #fff;
+    border: calc(var(--u) * .9) solid var(--ink);
+    font-size: calc(var(--u) * 4); font-weight: 900; line-height: calc(var(--u) * 5.2); text-align: center;
+  }
+  /* empty：一个萝卜都没有（变淡）；none：格子里没有萝卜（拿在手上的不算）*/
+  .slot.empty { opacity: .45; }
+  .slot.none .ico, .slot.none .count { visibility: hidden; }
+  .slot.on { background: var(--purple); transform: translateY(calc(var(--u) * -1.6)); box-shadow: 0 calc(var(--u) * 2.8) 0 var(--ink); }
+  .slot.got { animation: got .35s cubic-bezier(.34, 1.56, .64, 1); }
+  @keyframes got { 40% { transform: scale(1.25); } }
+  .slot:not(.none) .ico img { transform-origin: 50% 65%; animation: jitter .14s linear infinite; }
+  .slot:focus-visible { outline: calc(var(--u) * 1) solid #fff; outline-offset: calc(var(--u) * .6); }
+
+  /* ---------- 地洞 ---------- */
+  .hole {
+    position: absolute;
+    width: calc(471 / 1350 * 100%);
+    height: calc(471 / 3000 * 100%);
+    pointer-events: none;
+  }
+  .hole img { position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%; display: block; }
+  .hole img:not([src]) { visibility: hidden; }
+  /* 角色只在地洞前沿下边线以上可见，往下缩就“钻进洞里” */
+  .clip {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    -webkit-clip-path: polygon(0% 0%, 100% 0%, 100% 69%, 84.9% 69.9%, 80.7% 76.9%, 76.4% 79.7%, 72.2% 81.2%,
+      63.7% 82.5%, 55.2% 83.1%, 46.7% 83.3%, 38.2% 82.9%, 29.7% 81.4%, 25.5% 80.5%, 21.2% 78.4%,
+      17% 74.4%, 14.9% 69%, 0% 69%);
+    clip-path: polygon(0% 0%, 100% 0%, 100% 69%, 84.9% 69.9%, 80.7% 76.9%, 76.4% 79.7%, 72.2% 81.2%,
+      63.7% 82.5%, 55.2% 83.1%, 46.7% 83.3%, 38.2% 82.9%, 29.7% 81.4%, 25.5% 80.5%, 21.2% 78.4%,
+      17% 74.4%, 14.9% 69%, 0% 69%);
+  }
+  .char {
+    transform: translateY(62%);
+    transition: transform .18s cubic-bezier(.34, 1.4, .64, 1);
+  }
+  .hole.up .char { transform: translateY(0); }
+  .hole.sink .char { transition: transform .22s ease-in; transform: translateY(62%); }
+  /* 狐萝卜一直小幅快速地抖（洞里、道具栏、拿在手上都是）。
+     用独立的 rotate / translate 属性，不影响升降和挥动用的 transform */
+  .hole.wiggle .char { transform-origin: 50% 80%; animation: jitter .14s linear infinite; }
+  @keyframes jitter {
+    0%, 100% { rotate: 0deg; translate: 0 0; }
+    25% { rotate: -2.5deg; translate: -.8% .3%; }
+    50% { rotate: 1.5deg; translate: .6% -.4%; }
+    75% { rotate: -1deg; translate: .8% .2%; }
+  }
+
+  .pop {
+    position: absolute; left: 50%; top: 22%;
+    font-size: calc(var(--u) * 8); font-weight: 900;
+    color: #fff;
+    -webkit-text-stroke: calc(var(--u) * 1.1) var(--ink); paint-order: stroke fill;
+    transform: translateX(-50%);
+    animation: floatUp .8s ease-out forwards;
+    z-index: 5; white-space: nowrap;
+  }
+  .pop.plus-big { color: #ffd84d; font-size: calc(var(--u) * 10); }
+  .pop.minus { color: #ff8f80; }
+  .pop.item-pop { color: var(--purple); font-size: calc(var(--u) * 7); }
+  @keyframes floatUp {
+    0% { opacity: 0; transform: translate(-50%, 20%) scale(.6); }
+    20% { opacity: 1; transform: translate(-50%, 0) scale(1.1); }
+    100% { opacity: 0; transform: translate(-50%, -120%) scale(1); }
+  }
+
+  /* ---------- 突脸 ---------- */
+  .face {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0; width: 100%; height: 100%;
+    z-index: 60; pointer-events: none; display: none;
+  }
+  .face.show { display: block; }
+  .stage.shake { animation: shake .35s ease-in-out; }
+  @keyframes shake {
+    0%, 100% { transform: translate(0, 0); }
+    20% { transform: translate(-1.5%, .5%); }
+    40% { transform: translate(1.5%, -.5%); }
+    60% { transform: translate(-1%, .3%); }
+    80% { transform: translate(1%, 0); }
+  }
+
+  /* ---------- 手里的武器（锤子 / 狐萝卜）---------- */
+  .weapon {
+    position: absolute; left: 0; top: 0;
+    width: calc(var(--u) * 26); height: calc(var(--u) * 26);
+    z-index: 80; pointer-events: none;
+    transform-origin: 50% 87%;
+    transform: rotate(18deg);
+    opacity: 0;
+    transition: opacity .15s;
+  }
+  .weapon.on { opacity: 1; }
+  .weapon.swing { animation: swing .16s ease-out; }
+  .weapon.jitter { animation: jitter .14s linear infinite; }
+  .weapon.jitter.swing { animation: swing .16s ease-out, jitter .14s linear infinite; }
+  @keyframes swing {
+    0% { transform: rotate(18deg); }
+    45% { transform: rotate(-38deg) scale(.95); }
+    100% { transform: rotate(18deg); }
+  }
+
+  /* ---------- 弹窗 ---------- */
+  .overlay {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 70;
+    display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    padding-top: calc(var(--u) * 26);
+    background: rgba(146, 223, 230, .35);
+    cursor: auto;
+  }
+  .overlay[hidden], .card[hidden] { display: none; }
+
+  /* 语言切换 */
+  .langs { display: flex; margin-top: calc(var(--u) * 6); }
+  .langs button + button { margin-left: calc(var(--u) * 2); }
+  .langs button {
+    all: unset;
+    min-width: calc(var(--u) * 11); height: calc(var(--u) * 9); padding: 0 calc(var(--u) * 1.6);
+    border-radius: 99px;
+    background: var(--cream);
+    border: calc(var(--u) * 1) solid var(--ink);
+    font-size: calc(var(--u) * 4); font-weight: 800; color: var(--ink);
+    text-align: center; line-height: calc(var(--u) * 9);
+    cursor: pointer;
+    opacity: .7;
+  }
+  .langs button:hover { opacity: 1; }
+  .langs button[aria-pressed="true"] { background: var(--purple); opacity: 1; }
+  .langs button:focus-visible { outline: calc(var(--u) * 1) solid #fff; outline-offset: calc(var(--u) * .6); }
+  .card {
+    width: calc(var(--u) * 86);
+    background: var(--cream);
+    border: calc(var(--u) * 1.4) solid var(--ink);
+    border-radius: calc(var(--u) * 8);
+    padding: calc(var(--u) * 5) calc(var(--u) * 5) calc(var(--u) * 6.5);
+    text-align: center;
+    box-shadow: 0 calc(var(--u) * 2.4) 0 rgba(122, 112, 80, .25);
+    animation: cardIn .35s cubic-bezier(.34, 1.56, .64, 1);
+  }
+  @keyframes cardIn { from { transform: translateX(var(--tx, 0)) scale(.8); opacity: 0; } }
+  .card h1, .card h2 { margin: 0 0 calc(var(--u) * 2); font-size: calc(var(--u) * 10); letter-spacing: .05em; white-space: nowrap; }
+  /* 标题较长的语言缩小一点，保持一行 */
+  :lang(ja) .card h1 { font-size: calc(var(--u) * 8.4); letter-spacing: 0; }
+  :lang(ko) .card h1 { font-size: calc(var(--u) * 8); letter-spacing: 0; }
+  :lang(en) .card h1, :lang(en) .card h2 { font-size: calc(var(--u) * 8); letter-spacing: 0; }
+  .card p { margin: 0 0 calc(var(--u) * 4); font-size: calc(var(--u) * 4.2); line-height: 1.6; }
+  .rules { margin: 0 0 calc(var(--u) * 5); }
+  .rule + .rule { margin-top: calc(var(--u) * 2); }
+  .rule {
+    display: flex; align-items: center;
+    background: #f3edff; border-radius: calc(var(--u) * 4); padding: calc(var(--u) * .8) calc(var(--u) * 3) calc(var(--u) * .8) calc(var(--u) * .8);
+    font-size: calc(var(--u) * 3.9); font-weight: 700; text-align: left; line-height: 1.35;
+  }
+  .rule .ico { position: relative; width: calc(var(--u) * 14); height: calc(var(--u) * 14); overflow: hidden; flex: none; margin-right: calc(var(--u) * 2.4); }
+  .rule .ico img { position: absolute; width: calc(var(--u) * 24); height: calc(var(--u) * 24); left: calc(var(--u) * -5); top: calc(calc(var(--u) * 7) - calc(var(--u) * 24) * var(--cy)); }
+  .rule .pts { margin-left: auto; font-size: calc(var(--u) * 4.8); white-space: nowrap; }
+  .rule.bad { background: #fff0e8; }
+  .rule.bad .pts { color: #e0705f; }
+  .rule.feed { background: #fff6dc; }
+  .rule .feed-pts { font-size: calc(var(--u) * 4); text-align: right; line-height: 1.3; }
+  .result-score { font-size: calc(var(--u) * 18); font-weight: 900; line-height: 1.1; margin: calc(var(--u) * 1) 0 calc(var(--u) * 2); }
+  .new-record { color: #e0705f; font-weight: 800; }
+  .btn {
+    font: inherit; font-size: calc(var(--u) * 6.4); font-weight: 900; color: var(--ink);
+    background: var(--purple);
+    border: calc(var(--u) * 1.2) solid var(--ink);
+    border-radius: 99px;
+    padding: calc(var(--u) * 2.2) calc(var(--u) * 12);
+    cursor: pointer;
+    box-shadow: 0 calc(var(--u) * 1.6) 0 var(--ink);
+    transition: transform .08s, box-shadow .08s;
+  }
+  .btn:hover { background: #d6c4ff; }
+  .btn:active { transform: translateY(calc(var(--u) * 1.2)); box-shadow: 0 calc(var(--u) * .4) 0 var(--ink); }
+  .btn:focus-visible { outline: calc(var(--u) * 1) solid #fff; outline-offset: calc(var(--u) * 1); }
+
+  .countdown {
+    position: absolute; left: 0; right: 0; top: 52%;
+    text-align: center; z-index: 65; pointer-events: none;
+    font-size: calc(var(--u) * 30); font-weight: 900; color: #fff;
+    -webkit-text-stroke: calc(var(--u) * 2.4) var(--ink); paint-order: stroke fill;
+  }
+  .countdown span { display: inline-block; animation: cd .7s ease-out forwards; }
+  @keyframes cd { from { transform: scale(1.6); opacity: 0; } 30% { transform: scale(1); opacity: 1; } to { opacity: .0; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stage.shake, .pill.low b, .hole.wiggle .char, .slot .ico img, .weapon.jitter { animation: none; }
+    .weapon.jitter.swing { animation: swing .16s ease-out; }
+  }
+</style>
+</head>
+<body>
+
+<div class="stage" id="stage">
+  <div class="hud">
+    <div class="pill"><small data-i18n="score">得分</small><b id="score">0</b></div>
+    <div class="pill" id="timePill"><small data-i18n="time">时间</small><b id="time">60</b></div>
+    <div class="pill"><small data-i18n="best">最高</small><b id="best">0</b></div>
+  </div>
+  <button class="slot empty none" id="slot" type="button" data-i18n-label="slot" aria-label="狐萝卜道具">
+    <span class="ico"><img src="assets/carrot.png" alt=""></span>
+    <span class="count" id="slotCount">0</span>
+  </button>
+
+  <img class="face" id="face" alt="">
+  <div class="countdown" id="countdown"></div>
+  <img class="weapon" id="weapon" src="assets/hammer.png" alt="">
+
+  <div class="overlay" id="overlay">
+    <div class="card" id="startCard">
+      <h1 data-i18n="title">球球打地鼠</h1>
+      <p data-i18n="intro">60 秒内，用锤子敲冒出来的狐球！</p>
+      <div class="rules">
+        <div class="rule"><span class="ico" style="--cy:.59"><img src="assets/fox.png" alt=""></span><span data-i18n="ruleFox">锤子敲狐球</span><span class="pts">+10</span></div>
+        <div class="rule bad"><span class="ico" style="--cy:.69"><img src="assets/leopard-b.png" alt=""></span><span data-i18n="ruleLeopard">不可以打豹球！</span></div>
+        <div class="rule feed"><span class="ico" style="--cy:.56"><img src="assets/carrot.png" alt=""></span><span data-i18n="ruleCarrot">神秘的狐萝卜，<br>使用了会发生什么事呢？</span></div>
+      </div>
+      <button class="btn" id="startBtn" type="button" data-i18n="start">开始</button>
+    </div>
+    <div class="card" id="resultCard" hidden>
+      <h2 data-i18n="timeUp">时间到！</h2>
+      <div class="result-score" id="resultScore">0</div>
+      <p id="resultNote"></p>
+      <button class="btn" id="againBtn" type="button" data-i18n="again">再来一局</button>
+    </div>
+    <div class="langs" id="langs" role="group" aria-label="Language">
+      <button type="button" data-lang="zh-CN" lang="zh-CN">简</button>
+      <button type="button" data-lang="zh-TW" lang="zh-TW">繁</button>
+      <button type="button" data-lang="ja" lang="ja">日</button>
+      <button type="button" data-lang="en" lang="en">EN</button>
+      <button type="button" data-lang="ko" lang="ko">한</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- 素材 ----
+  var A = 'assets/';
+  var GIF = {
+    foxHit:      { src: A + 'fox-hit.gif',             ms: 1950 },
+    foxMiss:     { src: A + 'fox-miss.gif',            ms: 1680 },
+    leopardA:    { src: A + 'leopard-a-miss.gif',      ms: 2300 },
+    leopardB:    { src: A + 'leopard-b-miss.gif',      ms: 1900 },
+    feedFox:     { src: A + 'carrot-feed-fox.gif',     ms: 1350 },
+    feedLeopard: { src: A + 'carrot-feed-leopard.gif', ms: 1000 },
+    face:        { src: A + 'face.gif',                ms: 1200 }
+  };
+
+  // 角色类型：贴图、命中框（471 画布坐标）、没打中动画、被萝卜喂到的动画和得分
+  //   leopardA = 特殊A：狐球举着豹球    leopardB = 特殊B：普通豹球
+  //   带 leopard 的都不能用锤子打，打了会触发突脸
+  var TYPES = {
+    fox:      { img: A + 'fox.png',       box: [80, 150, 390, 400], missGif: 'foxMiss',
+                feedGif: 'feedFox', feedPts: 20 },
+    carrot:   { img: A + 'carrot.png',    box: [135, 105, 335, 400] },
+    leopardA: { img: A + 'leopard-a.png', box: [80, 115, 390, 400], leopard: true, missGif: 'leopardA',
+                feedGif: 'feedFox', feedPts: 30 },
+    leopardB: { img: A + 'leopard-b.png', box: [110, 235, 360, 400], leopard: true, missGif: 'leopardB',
+                feedGif: 'feedLeopard', feedPts: 30 }
+  };
+
+  var PTS = { hammerFox: 10, hammerLeopard: -20 };
+
+  // 武器：锤头 / 萝卜上的这个点（471 画布坐标）对准指针
+  var WEAPONS = {
+    hammer: { img: A + 'hammer.png', ax: 235, ay: 140 },
+    carrot: { img: A + 'carrot.png', ax: 235, ay: 200 }
+  };
+
+  // 洞的位置：取自 洞洞.png，即每个 471x471 地洞画布在 1350x3000 背景上的左上角
+  var HOLE_POS = [[317, 1887], [825, 1939], [-27, 2053], [465, 2105], [899, 2241], [259, 2309]];
+  var W = 1350, H = 3000, C = 471;
+
+  var GAME_TIME = 60;
+
+  // ---- DOM ----
+  var stage = document.getElementById('stage');
+  var scoreEl = document.getElementById('score');
+  var timeEl = document.getElementById('time');
+  var timePill = document.getElementById('timePill');
+  var bestEl = document.getElementById('best');
+  var overlay = document.getElementById('overlay');
+  var startCard = document.getElementById('startCard');
+  var resultCard = document.getElementById('resultCard');
+  var resultScore = document.getElementById('resultScore');
+  var resultNote = document.getElementById('resultNote');
+  var langBtns = document.querySelectorAll('#langs [data-lang]');
+  var faceEl = document.getElementById('face');
+  var weaponEl = document.getElementById('weapon');
+  var slotEl = document.getElementById('slot');
+  var slotCount = document.getElementById('slotCount');
+  var countdownEl = document.getElementById('countdown');
+
+  // ---- 画面尺寸：按窗口大小等比缩放舞台，并读取刘海 / 底部横条的安全区 ----
+  var safeProbe = document.createElement('div');
+  safeProbe.style.cssText = 'position:absolute;visibility:hidden;pointer-events:none;' +
+    'padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);';
+  document.body.appendChild(safeProbe);
+
+  function layout() {
+    var w = Math.min(window.innerWidth, window.innerHeight * W / H);
+    stage.style.width = w + 'px';
+    stage.style.height = (w * H / W) + 'px';
+    stage.style.setProperty('--u', (w / 100) + 'px');
+    // 舞台贴住屏幕上 / 下边时才需要避开刘海和横条
+    var cs = getComputedStyle(safeProbe);
+    var touchesEdges = window.innerHeight - w * H / W < 2;
+    stage.style.setProperty('--safe-top', (touchesEdges ? parseFloat(cs.paddingTop) || 0 : 0) + 'px');
+    stage.style.setProperty('--safe-bottom', (touchesEdges ? parseFloat(cs.paddingBottom) || 0 : 0) + 'px');
+  }
+  window.addEventListener('resize', layout);
+  window.addEventListener('orientationchange', layout);
+  layout();
+  setTimeout(function () { stage.classList.add('ready'); }, 50);
+
+  // ---- 多语言 ----
+  // 角色名：狐球 = 玖球（繁中/日文）= Foxball / 여우공；豹球 = Leopard Ball / 표범공；
+  //         狐萝卜 = 狐蘿蔔 / キツネンジン / Fox Carrot / 여우당근
+  var TEXT = {
+    'zh-CN': {
+      title: '球球打地鼠', score: '得分', time: '时间', best: '最高',
+      intro: '60 秒内，用锤子敲冒出来的狐球！',
+      ruleFox: '锤子敲狐球', ruleLeopard: '不可以打豹球！',
+      ruleCarrot: '神秘的狐萝卜，<br>使用了会发生什么事呢？',
+      start: '开始', go: '开始！', gotCarrot: '拿到狐萝卜！',
+      timeUp: '时间到！', newRecord: '新纪录！🎉', bestScore: '最高分 {n}', again: '再来一局',
+      slot: '狐萝卜道具'
+    },
+    'zh-TW': {
+      title: '球球打地鼠', score: '分數', time: '時間', best: '最高分',
+      intro: '60 秒內，用槌子敲打冒出來的玖球！',
+      ruleFox: '用槌子敲玖球', ruleLeopard: '不可以打豹球喔！',
+      ruleCarrot: '神祕的狐蘿蔔，<br>用了會發生什麼事呢？',
+      start: '開始', go: '開始！', gotCarrot: '拿到狐蘿蔔！',
+      timeUp: '時間到！', newRecord: '新紀錄！🎉', bestScore: '最高分 {n}', again: '再玩一次',
+      slot: '狐蘿蔔道具'
+    },
+    ja: {
+      title: '玖球もぐらたたき', score: 'スコア', time: 'のこり', best: 'ベスト',
+      intro: '60秒間、顔を出した玖球を<br>ハンマーでたたこう！',
+      ruleFox: 'ハンマーで玖球をたたく', ruleLeopard: '豹球はたたいちゃダメ！',
+      ruleCarrot: 'なぞのキツネンジン…<br>使うとどうなるかな？',
+      start: 'スタート', go: 'スタート！', gotCarrot: 'ゲット！',
+      timeUp: 'タイムアップ！', newRecord: '新記録！🎉', bestScore: 'ベストスコア {n}', again: 'もう一回あそぶ',
+      slot: 'キツネンジン'
+    },
+    en: {
+      title: 'Whack-a-Foxball', score: 'Score', time: 'Time', best: 'Best',
+      intro: 'Bonk as many Foxballs as you can in 60 seconds!',
+      ruleFox: 'Bonk the Foxballs', ruleLeopard: 'Don’t bonk the Leopard Balls!',
+      ruleCarrot: 'A mysterious Fox Carrot…<br>what happens if you use it?',
+      start: 'Start', go: 'Go!', gotCarrot: 'Got a carrot!',
+      timeUp: 'Time’s up!', newRecord: 'New record! 🎉', bestScore: 'Best: {n}', again: 'Play again',
+      slot: 'Fox Carrot'
+    },
+    ko: {
+      title: '여우공 두더지 잡기', score: '점수', time: '시간', best: '최고 점수',
+      intro: '60초 동안 튀어나오는 여우공을<br>망치로 때려 보세요!',
+      ruleFox: '망치로 여우공 때리기', ruleLeopard: '표범공은 때리면 안 돼요!',
+      ruleCarrot: '신비한 여우당근,<br>사용하면 무슨 일이 생길까요?',
+      start: '시작', go: '시작!', gotCarrot: '여우당근 획득!',
+      timeUp: '시간 종료!', newRecord: '신기록! 🎉', bestScore: '최고 점수 {n}', again: '다시 하기',
+      slot: '여우당근'
+    }
+  };
+  var lang = 'zh-CN';
+  var lastResult = null;  // 结算画面显示中切换语言时用来重画
+
+  function t(key, n) { return TEXT[lang][key].replace('{n}', n); }
+
+  // 没手动选过就跟随系统语言
+  function detectLang() {
+    try {
+      var saved = localStorage.getItem('qiuqiu-lang');
+      if (TEXT[saved]) return saved;
+    } catch (e) {}
+    var list = navigator.languages || [navigator.language || ''];
+    for (var i = 0; i < list.length; i++) {
+      var l = String(list[i]).toLowerCase();
+      if (/^zh-(tw|hk|mo)|^zh-hant/.test(l)) return 'zh-TW';
+      if (/^zh/.test(l)) return 'zh-CN';
+      if (/^ja/.test(l)) return 'ja';
+      if (/^ko/.test(l)) return 'ko';
+      if (/^en/.test(l)) return 'en';
+    }
+    return 'en';
+  }
+
+  function setLang(l) {
+    lang = l;
+    document.documentElement.lang = l;
+    document.title = t('title');
+    document.querySelectorAll('[data-i18n]').forEach(function (el) { el.innerHTML = t(el.dataset.i18n); });
+    document.querySelectorAll('[data-i18n-label]').forEach(function (el) { el.setAttribute('aria-label', t(el.dataset.i18nLabel)); });
+    langBtns.forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.lang === l)); });
+    renderResultNote();
+  }
+
+  function renderResultNote() {
+    if (!lastResult) return;
+    resultNote.className = lastResult.record ? 'new-record' : '';
+    resultNote.textContent = lastResult.record ? t('newRecord') : t('bestScore', lastResult.best);
+  }
+
+  langBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      setLang(b.dataset.lang);
+      try { localStorage.setItem('qiuqiu-lang', b.dataset.lang); } catch (e) {}
+    });
+  });
+
+  setLang(detectLang());
+
+  // ---- GIF 每次从第一帧开始播放：用 blob URL，失败（如本地 file://）时退回加参数 ----
+  var gifBlobs = {};
+  var gifSeq = 0;
+  Object.keys(GIF).forEach(function (k) {
+    var g = GIF[k];
+    new Image().src = g.src;
+    if (window.fetch && location.protocol !== 'file:') {
+      fetch(g.src).then(function (r) { return r.ok ? r.blob() : null; })
+        .then(function (b) { if (b) gifBlobs[k] = b; }).catch(function () {});
+    }
+  });
+  Object.keys(TYPES).forEach(function (k) { new Image().src = TYPES[k].img; });
+
+  function setGif(img, key) {
+    if (img._blobUrl) { URL.revokeObjectURL(img._blobUrl); img._blobUrl = null; }
+    if (gifBlobs[key]) {
+      img._blobUrl = URL.createObjectURL(gifBlobs[key]);
+      img.src = img._blobUrl;
+    } else {
+      img.src = GIF[key].src + '?r=' + (++gifSeq);
+    }
+  }
+  function setStill(img, src) {
+    if (img._blobUrl) { URL.revokeObjectURL(img._blobUrl); img._blobUrl = null; }
+    img.src = src;
+  }
+
+  // ---- 建洞 ----
+  var holes = HOLE_POS.map(function (p) {
+    var el = document.createElement('div');
+    el.className = 'hole';
+    el.style.left = (p[0] / W * 100) + '%';
+    el.style.top = (p[1] / H * 100) + '%';
+    el.innerHTML =
+      '<img src="' + A + 'hole-back.png" alt="">' +
+      '<div class="clip"><img class="char" alt=""></div>' +
+      '<img src="' + A + 'hole-front.png" alt="">';
+    stage.insertBefore(el, faceEl);
+    return { el: el, x: p[0], y: p[1], char: el.querySelector('.char'), state: 'idle', type: null, timers: [] };
+  });
+  // 越靠下的洞越靠前
+  holes.slice().sort(function (a, b) { return a.y - b.y; })
+    .forEach(function (h, i) { h.el.style.zIndex = 10 + i; });
+
+  function later(h, fn, ms) { h.timers.push(setTimeout(fn, ms)); }
+  function clearHole(h) {
+    h.timers.forEach(clearTimeout);
+    h.timers = [];
+    h.el.classList.remove('up', 'sink', 'wiggle');
+    h.state = 'idle';
+    h.type = null;
+  }
+
+  // ---- 游戏状态 ----
+  var game = { playing: false, score: 0, time: GAME_TIME, best: 0, hits: 0, stunned: false, carrots: 0 };
+  var weapon = 'hammer';
+  var MAX_CARROTS = 3;
+  var spawnTimer = null, tickTimer = null, endAt = 0;
+
+  try { game.best = parseInt(localStorage.getItem('qiuqiu-whack-best'), 10) || 0; } catch (e) {}
+  bestEl.textContent = game.best;
+
+  function progress() { return Math.min(1, 1 - game.time / GAME_TIME); }
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function pickType() {
+    var r = Math.random();
+    // 道具栏满了就不再出狐萝卜
+    var carrotRate = game.carrots >= MAX_CARROTS ? 0 : 0.10;
+    var leopardRate = lerp(0.16, 0.28, progress());
+    if (r < carrotRate) return 'carrot';
+    if (r < carrotRate + leopardRate) return Math.random() < 0.5 ? 'leopardA' : 'leopardB';
+    return 'fox';
+  }
+
+  function popUp(h) {
+    var type = pickType();
+    var t = TYPES[type];
+    clearHole(h);
+    h.type = type;
+    h.state = 'up';
+    setStill(h.char, t.img);
+    // 先放到洞底再升起来
+    void h.char.offsetWidth;
+    h.el.classList.add('up');
+    if (type === 'carrot') h.el.classList.add('wiggle');
+
+    var stay = lerp(1100, 650, progress()) + Math.random() * 300;
+    if (t.leopard) stay += 250;
+    later(h, function () { escape(h); }, stay);
+  }
+
+  // 没被打到（播没打中动画期间 state = missing，仍然可以被打中）
+  function escape(h) {
+    if (h.state !== 'up') return;
+    var t = TYPES[h.type];
+    if (h.type === 'fox') {
+      h.state = 'missing';
+      setGif(h.char, 'foxMiss');
+      later(h, function () { sink(h); }, GIF.foxMiss.ms);
+    } else if (t.leopard) {
+      // 豹球没挨打，开心地撒花
+      h.state = 'missing';
+      setGif(h.char, t.missGif);
+      later(h, function () { sink(h); }, GIF[t.missGif].ms);
+    } else {
+      sink(h);
+    }
+  }
+
+  function sink(h) {
+    h.state = 'sinking';
+    h.el.classList.remove('up');
+    h.el.classList.add('sink');
+    later(h, function () { clearHole(h); }, 240);
+  }
+
+  function hit(h) {
+    var t = TYPES[h.type];
+    h.timers.forEach(clearTimeout);
+    h.timers = [];
+    h.state = 'anim';
+
+    if (h.type === 'carrot') {
+      // 狐萝卜：收进道具栏
+      sfx('pickup');
+      popText(h, t('gotCarrot'), 'item-pop');
+      sink(h);
+      game.carrots++;
+      updateSlot();
+      slotEl.classList.remove('got');
+      void slotEl.offsetWidth;
+      slotEl.classList.add('got');
+    } else if (weapon === 'carrot') {
+      // 萝卜是一次性的：喂完就换回锤子
+      game.hits++;
+      sfx('yay');
+      addScore(h, t.feedPts);
+      setGif(h.char, t.feedGif);
+      game.carrots--;
+      setWeapon('hammer', 350);
+      if (t.feedGif === 'feedFox') {
+        // 狐萝卜-打中1：狐球抱着萝卜钻回洞里（动画自己会消失）
+        later(h, function () { clearHole(h); }, GIF.feedFox.ms);
+      } else {
+        later(h, function () { sink(h); }, GIF[t.feedGif].ms);
+      }
+    } else if (h.type === 'fox') {
+      game.hits++;
+      sfx('bonk');
+      addScore(h, PTS.hammerFox);
+      setGif(h.char, 'foxHit');
+      later(h, function () { sink(h); }, 1200);
+    } else {
+      // 锤子敲了豹球：狐球突脸！
+      sfx('ouch');
+      addScore(h, PTS.hammerLeopard);
+      sink(h);
+      faceAttack();
+    }
+  }
+
+  function popText(h, text, cls) {
+    var el = document.createElement('div');
+    el.className = 'pop ' + (cls || '');
+    el.textContent = text;
+    h.el.appendChild(el);
+    // 靠边的洞弹出长文字时往里挪，别超出画面
+    var r = el.getBoundingClientRect(), s = stage.getBoundingClientRect(), m = s.width * 0.02;
+    if (r.left < s.left + m) el.style.marginLeft = (s.left + m - r.left) + 'px';
+    else if (r.right > s.right - m) el.style.marginLeft = (s.right - m - r.right) + 'px';
+    el.addEventListener('animationend', function () { el.remove(); });
+  }
+
+  function addScore(h, pts) {
+    game.score = Math.max(0, game.score + pts);
+    scoreEl.textContent = game.score;
+    popText(h, (pts > 0 ? '+' : '−') + Math.abs(pts), pts < 0 ? 'minus' : pts >= 30 ? 'plus-big' : '');
+  }
+
+  // ---- 武器切换 ----
+  // delay：先让手上的武器把这一下挥完，再换图
+  var shownWeapon = 'hammer', weaponSwapTimer = null;
+  function setWeapon(w, delay) {
+    weapon = w;
+    updateSlot();
+    clearTimeout(weaponSwapTimer);
+    if (delay) weaponSwapTimer = setTimeout(showWeapon, delay);
+    else showWeapon();
+  }
+  function updateSlot() {
+    // 拿在手上的那个不算在格子里
+    var inSlot = game.carrots - (weapon === 'carrot' ? 1 : 0);
+    slotCount.textContent = inSlot;
+    slotEl.classList.toggle('empty', game.carrots <= 0);
+    slotEl.classList.toggle('none', inSlot <= 0);
+    slotEl.classList.toggle('on', weapon === 'carrot');
+  }
+
+  // 点道具栏：锤子 <-> 狐萝卜
+  slotEl.addEventListener('click', function () {
+    if (!game.playing) return;
+    if (weapon === 'carrot') setWeapon('hammer');
+    else if (game.carrots > 0) { setWeapon('carrot'); sfx('pickup'); }
+  });
+
+  function showWeapon() {
+    clearTimeout(weaponSwapTimer);
+    shownWeapon = weapon;
+    weaponEl.src = WEAPONS[weapon].img;
+    weaponEl.classList.toggle('jitter', weapon === 'carrot');
+    if (lastPoint) moveWeapon(lastPoint);
+  }
+
+  // 锤子敲了豹球：狐球突脸！
+  function faceAttack() {
+    game.stunned = true;
+    setGif(faceEl, 'face');
+    faceEl.classList.add('show');
+    stage.classList.remove('shake');
+    void stage.offsetWidth;
+    stage.classList.add('shake');
+    setTimeout(function () {
+      faceEl.classList.remove('show');
+      if (faceEl._blobUrl) { URL.revokeObjectURL(faceEl._blobUrl); faceEl._blobUrl = null; }
+      faceEl.removeAttribute('src');
+      game.stunned = false;
+    }, GIF.face.ms);
+  }
+
+  function spawnLoop() {
+    if (!game.playing) return;
+    var free = holes.filter(function (h) { return h.state === 'idle'; });
+    var n = progress() > 0.5 && Math.random() < 0.35 ? 2 : 1;
+    for (var i = 0; i < n && free.length; i++) {
+      popUp(free.splice(Math.floor(Math.random() * free.length), 1)[0]);
+    }
+    spawnTimer = setTimeout(spawnLoop, lerp(950, 480, progress()) + Math.random() * 300);
+  }
+
+  // ---- 点击判定 ----
+  var lastPoint = null;
+  function stagePoint(e) {
+    var r = stage.getBoundingClientRect();
+    return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H, r: r };
+  }
+
+  function holeAt(p) {
+    // 命中框四周各放宽 pad，几个框重叠时取离点击位置最近的那个
+    var best = null, bestDist = Infinity;
+    holes.forEach(function (h) {
+      if (h.state !== 'up' && h.state !== 'missing') return;
+      var b = TYPES[h.type].box, pad = 45;
+      var lx = p.x - h.x, ly = p.y - h.y;
+      if (lx >= b[0] - pad && lx <= b[2] + pad && ly >= b[1] - pad && ly <= b[3] + pad) {
+        var dx = lx - (b[0] + b[2]) / 2, dy = ly - (b[1] + b[3]) / 2;
+        var d = dx * dx + dy * dy;
+        if (d < bestDist) { best = h; bestDist = d; }
+      }
+    });
+    return best;
+  }
+
+  function moveWeapon(p) {
+    lastPoint = p;
+    var wpn = WEAPONS[shownWeapon];
+    var size = weaponEl.offsetWidth;
+    var px = p.x / W * p.r.width, py = p.y / H * p.r.height;
+    weaponEl.style.left = (px - size * wpn.ax / C) + 'px';
+    weaponEl.style.top = (py - size * wpn.ay / C) + 'px';
+  }
+
+  var hideWeaponTimer = null;
+  stage.addEventListener('pointermove', function (e) {
+    if (e.pointerType !== 'mouse') return;
+    moveWeapon(stagePoint(e));
+    weaponEl.classList.add('on');
+  });
+  stage.addEventListener('pointerleave', function () { weaponEl.classList.remove('on'); });
+
+  stage.addEventListener('pointerdown', function (e) {
+    if (!overlay.hidden || slotEl.contains(e.target)) return;
+    // 萝卜刚用掉、还没换回锤子图时又点了一下：立刻换
+    if (shownWeapon !== weapon) showWeapon();
+    var p = stagePoint(e);
+    moveWeapon(p);
+    weaponEl.classList.add('on');
+    weaponEl.classList.remove('swing');
+    void weaponEl.offsetWidth;
+    weaponEl.classList.add('swing');
+    if (e.pointerType !== 'mouse') {
+      clearTimeout(hideWeaponTimer);
+      hideWeaponTimer = setTimeout(function () { weaponEl.classList.remove('on'); }, 300);
+    }
+    if (!game.playing || game.stunned) return;
+    var h = holeAt(p);
+    if (h) hit(h); else sfx('whiff');
+  });
+
+  // ---- 音效（WebAudio 合成，不需要额外文件）----
+  var ac = null;
+  function initAudio() {
+    try {
+      if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)();
+      if (ac.state === 'suspended') ac.resume();
+    } catch (e) {}
+  }
+  function tone(type, f0, f1, dur, vol, delay) {
+    var t = ac.currentTime + (delay || 0);
+    var o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(f0, t);
+    o.frequency.exponentialRampToValueAtTime(f1, t + dur);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  function sfx(kind) {
+    if (!ac) return;
+    try {
+      if (kind === 'bonk') { tone('triangle', 420, 120, 0.14, 0.35); tone('sine', 900, 600, 0.08, 0.15); }
+      else if (kind === 'yay') { tone('sine', 660, 660, 0.09, 0.2); tone('sine', 880, 880, 0.09, 0.2, 0.08); tone('sine', 1320, 1320, 0.16, 0.2, 0.16); }
+      else if (kind === 'pickup') { tone('sine', 520, 1040, 0.18, 0.22); tone('triangle', 1040, 1560, 0.14, 0.12, 0.1); }
+      else if (kind === 'ouch') { tone('sawtooth', 300, 70, 0.45, 0.18); tone('square', 160, 60, 0.4, 0.08); }
+      else if (kind === 'whiff') { tone('sine', 260, 180, 0.06, 0.08); }
+      else if (kind === 'tick') { tone('sine', 880, 880, 0.08, 0.15); }
+      else if (kind === 'go') { tone('sine', 1320, 1320, 0.25, 0.2); }
+    } catch (e) {}
+  }
+
+  // ---- 流程 ----
+  function startGame() {
+    initAudio();
+    overlay.hidden = true;
+    holes.forEach(clearHole);
+    setWeapon('hammer');
+    game.score = 0; game.hits = 0; game.time = GAME_TIME; game.stunned = false; game.carrots = 0;
+    updateSlot();
+    scoreEl.textContent = 0;
+    timeEl.textContent = GAME_TIME;
+    timePill.classList.remove('low');
+
+    var n = 3;
+    function step() {
+      if (n > 0) {
+        countdownEl.innerHTML = '<span>' + n + '</span>';
+        sfx('tick');
+        n--;
+        setTimeout(step, 700);
+      } else {
+        countdownEl.innerHTML = '<span>' + t('go') + '</span>';
+        sfx('go');
+        setTimeout(function () { countdownEl.innerHTML = ''; }, 700);
+        run();
+      }
+    }
+    step();
+  }
+
+  function run() {
+    game.playing = true;
+    endAt = Date.now() + GAME_TIME * 1000;
+    spawnTimer = setTimeout(spawnLoop, 300);
+    tickTimer = setInterval(function () {
+      var left = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+      if (left !== game.time) {
+        game.time = left;
+        timeEl.textContent = left;
+        timePill.classList.toggle('low', left <= 10);
+        if (left <= 5 && left > 0) sfx('tick');
+      }
+      if (left <= 0) endGame();
+    }, 100);
+  }
+
+  function endGame() {
+    game.playing = false;
+    clearTimeout(spawnTimer);
+    clearInterval(tickTimer);
+    setWeapon('hammer');
+    timePill.classList.remove('low');
+    holes.forEach(function (h) { if (h.state !== 'idle') { h.timers.forEach(clearTimeout); h.timers = []; sink(h); } });
+
+    var record = game.score > game.best;
+    if (record) {
+      game.best = game.score;
+      bestEl.textContent = game.best;
+      try { localStorage.setItem('qiuqiu-whack-best', String(game.best)); } catch (e) {}
+    }
+
+    setTimeout(function () {
+      lastResult = { record: record, best: game.best };
+      resultScore.textContent = game.score;
+      renderResultNote();
+      startCard.hidden = true;
+      resultCard.hidden = false;
+      overlay.hidden = false;
+      // 重新播放卡片弹出动画
+      resultCard.style.animation = 'none'; void resultCard.offsetWidth; resultCard.style.animation = '';
+      document.getElementById('againBtn').focus();
+    }, 500);
+  }
+
+  document.getElementById('startBtn').addEventListener('click', startGame);
+  document.getElementById('againBtn').addEventListener('click', startGame);
+
+  // 离线缓存（只在 https 网页版里用；APK 里文件本来就在手机上）
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !window.Capacitor) {
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>

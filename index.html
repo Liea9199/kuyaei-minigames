@@ -37,7 +37,7 @@
     touch-action: none;
   }
   body { display: flex; align-items: center; justify-content: center; }
-  /* 每种语言用对应地区的字体，避免日文/韩文/繁中套用简中字形 */
+  /* 每种语言用对应地区的字体 */
   :lang(zh-TW) { font-family: "PingFang TC", "Microsoft JhengHei", "Noto Sans TC", sans-serif; }
   :lang(ja) { font-family: "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic UI", "Meiryo", "Noto Sans JP", sans-serif; }
   :lang(ko) { font-family: "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif; }
@@ -46,7 +46,7 @@
 
   /* 舞台按背景图 1350x3000 等比缩放，内部坐标用百分比，尺寸用 --u（舞台宽度的 1%）。
      宽高和 --u 由脚本 layout() 按窗口实际大小设置，这里只是脚本运行前的初始值。
-     不用 cqw / dvh / aspect-ratio，是为了兼容旧版安卓 WebView */
+     （不用 cqw / dvh / aspect-ratio：旧版安卓 WebView 不支持） */
   .stage {
     --u: 1vw;
     position: relative;
@@ -81,7 +81,7 @@
   .pill.low b { color: #e0705f; animation: pulse .5s ease-in-out infinite alternate; }
   @keyframes pulse { to { transform: scale(1.12); } }
 
-  /* 左下角的道具栏（右下角的洞离底边太近，主屏幕模式下要避开 iPhone 底部横条时会撞到）：捡到的狐萝卜放这里，点一下拿在手上 */
+  /* 道具栏：捡到的狐萝卜放这里，点一下拿在手上，再点一下放回 */
   .slot {
     all: unset;
     position: absolute; left: calc(var(--u) * 4); bottom: calc(var(--u) * 4 + var(--safe-bottom, 0px));
@@ -107,7 +107,7 @@
   .slot.empty { opacity: .45; }
   .slot.none .ico, .slot.none .count { visibility: hidden; }
   .slot.on { background: var(--purple); transform: translateY(calc(var(--u) * -1.6)); box-shadow: 0 calc(var(--u) * 2.8) 0 var(--ink); }
-  /* 萝卜正在使用中：格子外一圈闪烁的黄色光环（用 ::after，不和“got”弹跳动画抢 animation） */
+  /* 萝卜使用中：格子外一圈闪烁的光环（用 ::after，不和 got 弹跳动画抢 animation） */
   .slot::after {
     content: '';
     position: absolute;
@@ -115,7 +115,6 @@
     right: calc(var(--u) * -2.6); bottom: calc(var(--u) * -2.6);
     border: calc(var(--u) * 1.4) solid #ffd84d;
     border-radius: calc(var(--u) * 7);
-    /* 外圈深色描边，免得黄色和草地混在一起 */
     box-shadow: 0 0 0 calc(var(--u) * .9) var(--ink), 0 0 calc(var(--u) * 4) calc(var(--u) * 1.6) rgba(255, 244, 170, .95);
     opacity: 0;
     pointer-events: none;
@@ -156,7 +155,7 @@
   }
   .hole.up .char { transform: translateY(0); }
   .hole.sink .char { transition: transform .22s ease-in; transform: translateY(62%); }
-  /* 狐萝卜一直小幅快速地抖（洞里、道具栏、拿在手上都是）。
+  /* 狐萝卜的抖动（洞里、道具栏、手上）。
      用独立的 rotate / translate 属性，不影响升降和挥动用的 transform */
   .hole.wiggle .char { transform-origin: 50% 80%; animation: jitter .14s linear infinite; }
   @keyframes jitter {
@@ -370,7 +369,7 @@
 
   // 角色类型：贴图、命中框（471 画布坐标）、没打中动画、被萝卜喂到的动画和得分
   //   leopardA = 特殊A：狐球举着豹球    leopardB = 特殊B：普通豹球
-  //   带 leopard 的都不能用锤子打，打了会触发突脸
+  //   leopard：被锤子打中会触发突脸
   var TYPES = {
     fox:      { img: A + 'fox.png',       box: [80, 150, 390, 400], missGif: 'foxMiss',
                 feedGif: 'feedFox', feedPts: 20 },
@@ -436,8 +435,6 @@
   setTimeout(function () { stage.classList.add('ready'); }, 50);
 
   // ---- 多语言 ----
-  // 角色名：狐球 = 玖球（繁中/日文）= Foxball / 여우공；豹球 = Leopard Ball / 표범공；
-  //         狐萝卜 = 狐蘿蔔 / キツネンジン / Fox Carrot / 여우당근
   var TEXT = {
     'zh-CN': {
       title: '球球打地鼠', score: '得分', time: '时间', best: '最高',
@@ -634,7 +631,7 @@
       setGif(h.char, 'foxMiss');
       later(h, function () { sink(h); }, GIF.foxMiss.ms);
     } else if (t.leopard) {
-      // 豹球没挨打，开心地撒花
+      // 豹球：播没打中（撒花）动画
       h.state = 'missing';
       setGif(h.char, t.missGif);
       later(h, function () { sink(h); }, GIF[t.missGif].ms);
@@ -667,7 +664,7 @@
       void slotEl.offsetWidth;
       slotEl.classList.add('got');
     } else if (weapon === 'carrot') {
-      // 萝卜是一次性的：喂完就换回锤子
+      // 用掉一个萝卜，挥完后换回锤子
       game.hits++;
       sfx('yay');
       addScore(h, t.feedPts);
@@ -723,8 +720,8 @@
     if (delay) weaponSwapTimer = setTimeout(showWeapon, delay);
     else showWeapon();
   }
-  // 手机（没有鼠标指针、看不到手上的萝卜）：拿着萝卜时道具栏继续显示萝卜，数字是总数。
-  // 电脑：指针本身就是萝卜，拿在手上的那个不算在格子里。
+  // 无悬停指针的设备（手机）：拿着萝卜时道具栏继续显示萝卜，数字是总数。
+  // 有鼠标的设备：手上的那个不算在格子里。
   var noHover = window.matchMedia && window.matchMedia('(hover: none)').matches;
 
   function updateSlot() {
@@ -836,22 +833,19 @@
   });
 
   // ---- 音效（WebAudio 合成，不需要额外文件）----
-  // iPhone 的限制：
-  //   1. 声音只能在点击的那一刻启动，切 app / 锁屏 / 来电后会被暂停（state 变成 suspended 或 interrupted），
-  //      所以每次点击都检查一遍，没在播就恢复。
-  //   2. 侧边静音开关打开时 Web Audio 会被静音。把音频类型设成 playback（和看视频一样）就能出声，
-  //      代价是会暂停正在后台放的音乐。旧版 iOS 没有 audioSession，用循环播放一段无声音频达到同样效果。
+  // iOS 处理：
+  //   1. 声音只能在点击时启动，切 app / 锁屏 / 来电后会被暂停（suspended / interrupted），每次点击时检查并恢复。
+  //   2. 音频类型设成 playback，静音开关打开时也会出声；旧版 iOS 没有 audioSession，改用循环播放一段无声音频。
   var ac = null, audioUnlocked = false, silentEl = null;
   var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
-  // fresh = true：丢掉旧的音频系统重新建一个（每局开始时用）。
-  // iOS 停一阵子没出声后会关掉网页的音频通道，旧的 AudioContext 虽然显示 running 但已经不出声，
-  // 只能重建；开始按钮是点击触发的，这时建立新的不会被拦。
+  // fresh = true：关掉旧的 AudioContext 重新建一个（每局开始时用）。
+  // iOS 一段时间没出声后，旧的 AudioContext 可能显示 running 但不再出声，只能重建。
   var audioSessionSet = false;
   function initAudio(fresh) {
     try {
-      // 只设一次：反复设置在 iOS 上可能会打断正在用的音频
+      // 只设一次：反复设置可能打断正在播放的音频
       if (!audioSessionSet) {
         if (navigator.audioSession) navigator.audioSession.type = 'playback';
         audioSessionSet = true;
@@ -1002,8 +996,7 @@
   document.getElementById('startBtn').addEventListener('click', startGame);
   document.getElementById('againBtn').addEventListener('click', startGame);
 
-  // iPhone 的 Safari 会无视 user-scalable=no，连点还是会被当成双击放大，这里直接拦掉。
-  // 按钮要保留点击，其他地方的点击判定用的是 pointerdown，不受影响
+  // 拦截双击放大（iOS Safari 无视 user-scalable=no）。按钮保留点击；游戏内的点击判定用 pointerdown，不受影响
   document.addEventListener('touchend', function (e) {
     if (!(e.target.closest && e.target.closest('button'))) e.preventDefault();
   }, { passive: false });
@@ -1014,7 +1007,7 @@
   });
   document.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
-  // 离线缓存（只在 https 网页版里用；APK 里文件本来就在手机上）
+  // 离线缓存（https 或 localhost 时启用；用 Capacitor 打包时不启用）
   if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost') && !window.Capacitor) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
